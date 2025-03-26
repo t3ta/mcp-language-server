@@ -1,0 +1,26 @@
+{
+  "workspaceDir": "/path/to/workspace",
+  "languageServers": [
+    {
+      "language": "typescript",
+      "command": "typescript-language-server",
+      "args": [
+        "--stdio"
+      ],
+      "extensions": [
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx"
+      ]
+    },
+    {
+      "language": "go",
+      "command": "gopls",
+      "args": [],
+      "extensions": [
+        ".go"
+      ]
+    }
+  ]
+}
