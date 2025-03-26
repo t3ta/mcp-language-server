@@ -16,7 +16,7 @@
     },
     {
       "language": "go",
-      "command": "/path/to/gopls",
+      "command": "gopls",
       "args": [],
       "extensions": [
         ".go"

@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"path/filepath" // Added for absolute path conversion
 
 	"github.com/isaacphi/mcp-language-server/internal/lsp"
 	"github.com/isaacphi/mcp-language-server/internal/protocol"
@@ -29,9 +30,16 @@ type TextEdit struct {
 }
 
 func ApplyTextEdits(ctx context.Context, client *lsp.Client, filePath string, edits []TextEdit) (string, error) {
-	err := client.OpenFile(ctx, filePath)
+	// Ensure filePath is absolute
+	absFilePath, err := filepath.Abs(filePath)
 	if err != nil {
-		return "", fmt.Errorf("could not open file: %v", err)
+		return "", fmt.Errorf("could not get absolute path for '%s': %w", filePath, err)
+	}
+	filePath = absFilePath // Use absolute path from now on
+
+	err = client.OpenFile(ctx, filePath) // Use absolute path
+	if err != nil {
+		return "", fmt.Errorf("could not open file '%s': %w", filePath, err)
 	}
 
 	// Sort edits by line number in descending order to process from bottom to top

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"path/filepath" // Added for absolute path conversion
 
 	"github.com/isaacphi/mcp-language-server/internal/lsp"
 	"github.com/isaacphi/mcp-language-server/internal/protocol"
@@ -12,9 +13,16 @@ import (
 
 // GetCodeLens retrieves code lens hints for a given file location
 func GetCodeLens(ctx context.Context, client *lsp.Client, filePath string) (string, error) {
-	err := client.OpenFile(ctx, filePath)
+	// Ensure filePath is absolute
+	absFilePath, err := filepath.Abs(filePath)
 	if err != nil {
-		return "", fmt.Errorf("could not open file: %v", err)
+		return "", fmt.Errorf("could not get absolute path for '%s': %w", filePath, err)
+	}
+	filePath = absFilePath // Use absolute path from now on
+
+	err = client.OpenFile(ctx, filePath) // Use absolute path
+	if err != nil {
+		return "", fmt.Errorf("could not open file '%s': %w", filePath, err)
 	}
 	// TODO: find a more appropriate way to wait
 	time.Sleep(time.Second)

@@ -281,8 +281,8 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Load configuration from file (replace parseConfig)
-	// TODO: Make config path configurable (e.g., via flag)
-	configPath := "config.json"
+	// Config path is now determined by the global 'configPath' variable, set by flags in init()
+	log.Printf("Using configuration file path from flag: %s", configPath) // Add log here
 	config, err := loadConfig(configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config from %s: %v", configPath, err)
