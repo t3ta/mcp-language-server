@@ -38,8 +38,51 @@ type FindReferencesArgs struct {
 }
 
 type ApplyTextEditArgs struct {
-	FilePath string                `json:"filePath"`
-	Edits    []internalTools.TextEdit `json:"edits"` // Use internalTools alias
+	FilePath string                `json:"filePath" jsonschema:"required,description=The path to the file to apply edits to."` // Added description
+	Edits    []internalTools.TextEdit `json:"edits" jsonschema:"required,description=An array of text edit objects defining the changes to apply.",items={
+		"type": "object",
+		"properties": {
+			"type": {
+				"type": "string",
+				"enum": ["replace", "insert", "delete"],
+				"description": "Type of edit operation (replace, insert, delete)"
+			},
+			"startLine": {
+				"type": "integer",
+				"description": "Start line of the range, inclusive"
+			},
+			"endLine": {
+				"type": "integer",
+				"description": "End line of the range, inclusive"
+			},
+			"newText": {
+				"type": "string",
+				"description": "Replacement text for non-regex replace/insert. Leave blank for delete."
+			},
+			"isRegex": {
+				"type": "boolean",
+				"description": "Whether to treat pattern as regex"
+			},
+			"regexPattern": {
+				"type": "string",
+				"description": "Regex pattern to search for within the range (if isRegex is true)"
+			},
+			"regexReplace": {
+				"type": "string",
+				"description": "Replacement string, supporting capture groups like $1 (if isRegex is true)"
+			},
+			"preserveBrackets": {
+				"type": "boolean",
+				"description": "If true, check and prevent edits that break bracket pairs"
+			},
+			"bracketTypes": {
+				"type": "array",
+				"items": { "type": "string" },
+				"description": "Types of brackets to check (e.g., '()', '{}', '[]'). Defaults if empty."
+			}
+		},
+		"required": ["type", "startLine", "endLine"]
+	}` // Use internalTools alias, Inlined TextEdit schema description
 }
 
 type GetDiagnosticsArgs struct {
@@ -62,7 +105,7 @@ func (s *server) registerTools() error {
 	// Register apply_text_edit tool
 	err := s.mcpServer.RegisterTool(
 		"apply_text_edit",
-		"Apply multiple text edits to a file.", // Use generic description
+		"Apply multiple text edits to a file specified by `filePath`. Each edit in the `edits` array defines the operation (`replace`, `insert`, `delete`), range (`startLine`, `endLine`), and optionally `newText` or regex patterns for advanced replacements.", // Even more detailed description! ✨
 		func(args ApplyTextEditArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on file extension
 			client, err := s.getClientForFile(args.FilePath)
@@ -84,7 +127,7 @@ func (s *server) registerTools() error {
 	// Register read_definition tool
 	err = s.mcpServer.RegisterTool(
 		"read_definition",
-		"Read the source code definition of a symbol (function, type, constant, etc.) from the codebase. Returns the complete implementation code where the symbol is defined.", // Use generic description
+		"Read the source code definition of a symbol (function, type, constant, etc.) specified by `symbolName` and `language`. Returns the complete implementation code where the symbol is defined.", // Updated description
 		func(args ReadDefinitionArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on language argument
 			client, ok := s.lspClients[args.Language]
@@ -106,7 +149,7 @@ func (s *server) registerTools() error {
 	// Register find_references tool
 	err = s.mcpServer.RegisterTool(
 		"find_references",
-		"Find all usages and references of a symbol throughout the codebase. Returns a list of all files and locations where the symbol appears.", // Use generic description
+		"Find all usages and references of a symbol specified by `symbolName` and `language` throughout the codebase. Returns a list of all files and locations where the symbol appears.", // Updated description
 		func(args FindReferencesArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on language argument
 			client, ok := s.lspClients[args.Language]
@@ -128,7 +171,7 @@ func (s *server) registerTools() error {
 	// Register get_diagnostics tool
 	err = s.mcpServer.RegisterTool(
 		"get_diagnostics",
-		"Get diagnostic information for a specific file from the language server.", // Use generic description
+		"Get diagnostic information (errors, warnings) for a specific file specified by `filePath` from the language server.", // Updated description
 		func(args GetDiagnosticsArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on file extension
 			client, err := s.getClientForFile(args.FilePath)
@@ -151,7 +194,7 @@ func (s *server) registerTools() error {
 	// Register get_codelens tool
 	err = s.mcpServer.RegisterTool(
 		"get_codelens",
-		"Get code lens hints for a given file from the language server.", // Use generic description
+		"Get code lens hints (e.g., run test, references) for a given file specified by `filePath` from the language server.", // Updated description
 		func(args GetCodeLensArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on file extension
 			client, err := s.getClientForFile(args.FilePath)
@@ -174,7 +217,7 @@ func (s *server) registerTools() error {
 	// Register execute_codelens tool
 	err = s.mcpServer.RegisterTool(
 		"execute_codelens",
-		"Execute a code lens command for a given file and lens index.", // Use generic description
+		"Execute a code lens command (obtained from `get_codelens`) for a given file specified by `filePath` and the lens `index`.", // Updated description
 		func(args ExecuteCodeLensArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on file extension
 			client, err := s.getClientForFile(args.FilePath)
