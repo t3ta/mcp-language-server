@@ -30,7 +30,7 @@ This server provides the following tools, automatically routing requests to the 
 - `get_diagnostics`: Provides diagnostic information for a specific file (language determined by file extension).
 - `get_codelens`: Retrieves code lens hints for a specific file (language determined by file extension).
 - `execute_codelens`: Runs a code lens action for a specific file (language determined by file extension).
-- `apply_text_edit`: Allows making multiple text edits to a file programmatically (language determined by file extension).
+- `apply_text_edit`: Allows making multiple text edits to a file programmatically (language determined by file extension). Supports simple insert/delete/replace, regex-based replacement (using `isRegex`, `regexPattern`, `regexReplace`), and optional bracket balance protection (using `preserveBrackets`, `bracketTypes`) to prevent edits that break pairs like `()`, `{}`, `[]`.
 
 Behind the scenes, this MCP server can act on `workspace/applyEdit` requests from the language servers, enabling features like refactoring, adding imports, and code formatting.
 

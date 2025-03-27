@@ -19,6 +19,17 @@ type FileOpener interface {
 	OpenFile(ctx context.Context, filePath string) error
 }
 
+// BracketGuardError represents an error when an edit violates bracket balancing rules.
+type BracketGuardError struct {
+	ViolationType string    `json:"violationType"` // e.g., "CrossingPair", "PartialPairStart", "PartialPairEnd"
+	Message       string    `json:"message"`
+	Suggestion    *TextEdit `json:"suggestion,omitempty"` // Optional suggestion for a safe edit
+}
+
+func (e *BracketGuardError) Error() string {
+	return fmt.Sprintf("Bracket balance violation (%s): %s", e.ViolationType, e.Message)
+}
+
 type TextEditType string
 
 const (
@@ -35,6 +46,8 @@ type TextEdit struct {
 	IsRegex      bool         `json:"isRegex,omitempty" jsonschema:"description=Whether to treat pattern as regex"`
 	RegexPattern string       `json:"regexPattern,omitempty" jsonschema:"description=Regex pattern to search for within the range (if isRegex is true)"`
 	RegexReplace string       `json:"regexReplace,omitempty" jsonschema:"description=Replacement string, supporting capture groups like $1 (if isRegex is true)"`
+	PreserveBrackets bool     `json:"preserveBrackets,omitempty" jsonschema:"description=If true, check and prevent edits that break bracket pairs"`
+	BracketTypes []string     `json:"bracketTypes,omitempty" jsonschema:"description=Types of brackets to check (e.g., '()', '{}', '[]'). Defaults if empty."`
 }
 
 // ApplyTextEdits applies a series of text edits to a file.
@@ -65,6 +78,21 @@ func ApplyTextEdits(ctx context.Context, opener FileOpener, filePath string, edi
 		if err != nil {
 			return "", fmt.Errorf("invalid position: %v", err)
 		}
+
+		// --- Bracket Guard Check ---
+		if edit.PreserveBrackets {
+			// Read file content just before the check (could be optimized)
+			contentBytes, readErr := os.ReadFile(filePath)
+			if readErr != nil {
+				// Log or handle error? For now, maybe return error as it's critical for the check.
+				return "", fmt.Errorf("failed to read file for bracket check: %w", readErr)
+			}
+			if guardErr := checkBracketBalance(ctx, filePath, edit, contentBytes); guardErr != nil {
+				// If the check fails, return the specific bracket guard error
+				return "", guardErr
+			}
+		}
+		// --- End Bracket Guard Check ---
 
 		// Handle Regex Replace first
 		if edit.IsRegex && edit.Type == Replace {
@@ -223,4 +251,120 @@ func getRange(startLine, endLine int, filePath string) (protocol.Range, error) {
 			Character: uint32(len(lines[endIdx])),
 		},
 	}, nil
+}
+
+// checkBracketBalance checks if the proposed edit range (defined by edit)
+// would break bracket pairs in the given file content.
+// TODO: Implement the actual bracket checking logic.
+func checkBracketBalance(ctx context.Context, filePath string, edit TextEdit, content []byte) *BracketGuardError {
+	// Default bracket pairs to check if not specified
+	bracketPairs := map[rune]rune{
+		'(': ')',
+		'[': ']',
+		'{': '}',
+	}
+	if len(edit.BracketTypes) > 0 {
+		bracketPairs = make(map[rune]rune)
+		for _, pair := range edit.BracketTypes {
+			if len(pair) == 2 {
+				runes := []rune(pair)
+				bracketPairs[runes[0]] = runes[1]
+			} else {
+				// Optionally log a warning about invalid pair format
+			}
+		}
+	}
+	if len(bracketPairs) == 0 {
+		return nil // No brackets to check
+	}
+
+	// --- Parsing and Checking Logic ---
+
+	// Define reverse mapping for closing brackets
+	closingBrackets := make(map[rune]rune)
+	for open, close := range bracketPairs {
+		closingBrackets[close] = open
+	}
+
+	// Convert content to lines
+	contentStr := string(content)
+	lineEnding := "\n"
+	if strings.Contains(contentStr, "\r\n") {
+		lineEnding = "\r\n"
+	}
+	lines := strings.Split(contentStr, lineEnding)
+
+	// Get 0-based line indices for the edit range
+	editStartLineIdx := edit.StartLine - 1
+	editEndLineIdx := edit.EndLine - 1
+
+	// Basic validation for line indices (should ideally be caught earlier)
+	if editStartLineIdx < 0 { editStartLineIdx = 0 }
+	if editEndLineIdx >= len(lines) { editEndLineIdx = len(lines) - 1 }
+	if editStartLineIdx > editEndLineIdx {
+		// Invalid range, but not a balance issue itself.
+		return nil
+	}
+
+	type bracketInfo struct {
+		char rune
+		line int // 0-based index
+		col  int // 0-based index
+	}
+	var stack []bracketInfo
+
+	// Iterate through the lines to find bracket pairs and check against the edit range
+	for lineIdx, line := range lines {
+		for colIdx, char := range line {
+			// Check for opening brackets
+			if _, isOpen := bracketPairs[char]; isOpen {
+				stack = append(stack, bracketInfo{char: char, line: lineIdx, col: colIdx})
+			}
+
+			// Check for closing brackets
+			if openChar, isClose := closingBrackets[char]; isClose {
+				if len(stack) > 0 && stack[len(stack)-1].char == openChar {
+					// Found a matching pair
+					openBracket := stack[len(stack)-1]
+					closeBracket := bracketInfo{char: char, line: lineIdx, col: colIdx}
+					stack = stack[:len(stack)-1] // Pop from stack
+
+					// --- Check for violations based on LINE numbers ---
+					// Note: Column checks are omitted for simplicity for now.
+
+					isOpenInRange := openBracket.line >= editStartLineIdx && openBracket.line <= editEndLineIdx
+					isCloseInRange := closeBracket.line >= editStartLineIdx && closeBracket.line <= editEndLineIdx
+
+					// Case 1 & 2: Edit crosses one boundary of the pair
+					if isOpenInRange != isCloseInRange {
+						violationType := "CrossingPairStart"
+						message := fmt.Sprintf("Edit range includes opening bracket '%c' at line %d but not its closing bracket at line %d", openBracket.char, openBracket.line+1, closeBracket.line+1)
+						if !isOpenInRange && isCloseInRange {
+							violationType = "CrossingPairEnd"
+							message = fmt.Sprintf("Edit range includes closing bracket '%c' at line %d but not its opening bracket at line %d", closeBracket.char, closeBracket.line+1, openBracket.line+1)
+						}
+						return &BracketGuardError{
+							ViolationType: violationType,
+							Message:       message,
+							// TODO: Add Suggestion (e.g., expand range to include both brackets)
+						}
+					}
+
+					// Case 3: Edit is strictly inside the pair but doesn't contain either bracket line (only relevant for multi-line pairs)
+					// This might be allowed depending on desired strictness. Let's allow it for now.
+
+					// Case 4: Edit contains the pair entirely (this is generally safe)
+					// if isOpenInRange && isCloseInRange { continue } // Safe
+
+				} else {
+					// Mismatched closing bracket - ignore for now.
+				}
+			}
+		}
+	}
+
+	// If stack is not empty, there are unclosed brackets - ignore for now.
+
+	// If no violations were found
+	return nil
 }
