@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath" // For extension checking
 
-	"github.com/isaacphi/mcp-language-server/internal/lsp"    // For lsp.Client type
+	"github.com/isaacphi/mcp-language-server/internal/lsp"                 // For lsp.Client type
 	internalTools "github.com/isaacphi/mcp-language-server/internal/tools" // Alias internal/tools to avoid name clash
 	"github.com/metoro-io/mcp-golang"
 )
@@ -38,7 +38,7 @@ type FindReferencesArgs struct {
 }
 
 type ApplyTextEditArgs struct {
-	FilePath string                `json:"filePath"`
+	FilePath string                   `json:"filePath"`
 	Edits    []internalTools.TextEdit `json:"edits"` // Use internalTools alias
 }
 

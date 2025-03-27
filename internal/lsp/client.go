@@ -45,6 +45,10 @@ type Client struct {
 	// Files are currently opened by the LSP
 	openFiles   map[string]*OpenFileInfo
 	openFilesMu sync.RWMutex
+
+	// Track last received diagnostics time per URI
+	lastDiagnosticsTime   map[protocol.DocumentUri]time.Time
+	lastDiagnosticsTimeMu sync.RWMutex
 }
 
 func NewClient(command string, args ...string) (*Client, error) {
@@ -77,6 +81,7 @@ func NewClient(command string, args ...string) (*Client, error) {
 		serverRequestHandlers: make(map[string]ServerRequestHandler),
 		diagnostics:           make(map[protocol.DocumentUri][]protocol.Diagnostic),
 		openFiles:             make(map[string]*OpenFileInfo),
+		lastDiagnosticsTime:   make(map[protocol.DocumentUri]time.Time), // ★初期化追加
 	}
 
 	// Start the LSP server process
@@ -426,4 +431,19 @@ func (c *Client) GetFileDiagnostics(uri protocol.DocumentUri) []protocol.Diagnos
 	defer c.diagnosticsMu.RUnlock()
 
 	return c.diagnostics[uri]
+}
+
+// UpdateLastDiagnosticsTime updates the timestamp for the last received diagnostics for a given URI.
+func (c *Client) UpdateLastDiagnosticsTime(uri protocol.DocumentUri) {
+	c.lastDiagnosticsTimeMu.Lock()
+	defer c.lastDiagnosticsTimeMu.Unlock()
+	c.lastDiagnosticsTime[uri] = time.Now()
+}
+
+// GetLastDiagnosticsTime retrieves the timestamp for the last received diagnostics for a given URI.
+func (c *Client) GetLastDiagnosticsTime(uri protocol.DocumentUri) (time.Time, bool) {
+	c.lastDiagnosticsTimeMu.RLock()
+	defer c.lastDiagnosticsTimeMu.RUnlock()
+	t, ok := c.lastDiagnosticsTime[uri]
+	return t, ok
 }

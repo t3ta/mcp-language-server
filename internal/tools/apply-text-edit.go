@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath" // Added for absolute path conversion
 	"sort"
 	"strings"
-	"path/filepath" // Added for absolute path conversion
 
 	"github.com/isaacphi/mcp-language-server/internal/lsp"
 	"github.com/isaacphi/mcp-language-server/internal/protocol"

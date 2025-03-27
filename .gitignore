@@ -3,3 +3,4 @@ mcp-language-server
 
 # Temporary files
 *~
+.DS_Store

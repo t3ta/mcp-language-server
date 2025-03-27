@@ -104,5 +104,9 @@ func HandleDiagnostics(client *Client, params json.RawMessage) {
 
 	client.diagnostics[diagParams.URI] = diagParams.Diagnostics
 
+	// ★追加: 最終診断受信時刻を更新
+	client.UpdateLastDiagnosticsTime(diagParams.URI)
+
+	// 元のログはコメントアウトしてもいいかも
 	log.Printf("Received diagnostics for %s: %d items", diagParams.URI, len(diagParams.Diagnostics))
 }
