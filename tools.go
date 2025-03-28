@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath" // For extension checking
 
-	"github.com/isaacphi/mcp-language-server/internal/lsp"    // For lsp.Client type
+	"github.com/isaacphi/mcp-language-server/internal/lsp"                 // For lsp.Client type
 	internalTools "github.com/isaacphi/mcp-language-server/internal/tools" // Alias internal/tools to avoid name clash
 	"github.com/metoro-io/mcp-golang"
 )
@@ -38,7 +38,7 @@ type FindReferencesArgs struct {
 }
 
 type ApplyTextEditArgs struct {
-	FilePath string                `json:"filePath"`
+	FilePath string                   `json:"filePath"`
 	Edits    []internalTools.TextEdit `json:"edits"` // Use internalTools alias
 }
 
@@ -62,7 +62,7 @@ func (s *server) registerTools() error {
 	// Register apply_text_edit tool
 	err := s.mcpServer.RegisterTool(
 		"apply_text_edit",
-		"Apply multiple text edits to a file.", // Use generic description
+		"Apply multiple text edits to a specified file. Takes `filePath` (string) and `edits` (array of TextEdit objects with `type`, `startLine`, `endLine`, `newText`). Returns a confirmation message or error.",
 		func(args ApplyTextEditArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on file extension
 			client, err := s.getClientForFile(args.FilePath)
@@ -84,7 +84,7 @@ func (s *server) registerTools() error {
 	// Register read_definition tool
 	err = s.mcpServer.RegisterTool(
 		"read_definition",
-		"Read the source code definition of a symbol (function, type, constant, etc.) from the codebase. Returns the complete implementation code where the symbol is defined.", // Use generic description
+		"Read the source code definition of a symbol. Takes `symbolName` (string), `language` (string), and optional `showLineNumbers` (bool). Returns the definition's source code with location info.",
 		func(args ReadDefinitionArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on language argument
 			client, ok := s.lspClients[args.Language]
@@ -106,7 +106,7 @@ func (s *server) registerTools() error {
 	// Register find_references tool
 	err = s.mcpServer.RegisterTool(
 		"find_references",
-		"Find all usages and references of a symbol throughout the codebase. Returns a list of all files and locations where the symbol appears.", // Use generic description
+		"Find all usages and references of a symbol. Takes `symbolName` (string), `language` (string), and optional `showLineNumbers` (bool). Returns a list of locations and code snippets.",
 		func(args FindReferencesArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on language argument
 			client, ok := s.lspClients[args.Language]
@@ -128,7 +128,7 @@ func (s *server) registerTools() error {
 	// Register get_diagnostics tool
 	err = s.mcpServer.RegisterTool(
 		"get_diagnostics",
-		"Get diagnostic information for a specific file from the language server.", // Use generic description
+		"Get diagnostic information (errors, warnings) for a specific file. Takes `filePath` (string), optional `includeContext` (bool), and optional `showLineNumbers` (bool). Returns formatted diagnostics.",
 		func(args GetDiagnosticsArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on file extension
 			client, err := s.getClientForFile(args.FilePath)
@@ -151,7 +151,7 @@ func (s *server) registerTools() error {
 	// Register get_codelens tool
 	err = s.mcpServer.RegisterTool(
 		"get_codelens",
-		"Get code lens hints for a given file from the language server.", // Use generic description
+		"Get code lens hints (e.g., run test, references) for a file. Takes `filePath` (string). Returns a list of code lenses with their locations and associated commands.",
 		func(args GetCodeLensArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on file extension
 			client, err := s.getClientForFile(args.FilePath)
@@ -174,7 +174,7 @@ func (s *server) registerTools() error {
 	// Register execute_codelens tool
 	err = s.mcpServer.RegisterTool(
 		"execute_codelens",
-		"Execute a code lens command for a given file and lens index.", // Use generic description
+		"Execute a specific code lens command identified by its index. Takes `filePath` (string) and `index` (int, 1-based from get_codelens). Returns a confirmation message or error.",
 		func(args ExecuteCodeLensArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on file extension
 			client, err := s.getClientForFile(args.FilePath)
