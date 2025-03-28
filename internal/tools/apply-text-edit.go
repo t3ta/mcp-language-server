@@ -74,6 +74,12 @@ func ApplyTextEdits(ctx context.Context, opener FileOpener, filePath string, edi
 	// Convert from input format to protocol.TextEdit
 	var textEdits []protocol.TextEdit
 	for _, edit := range edits {
+		// --- Parameter Conflict Check ---
+		if edit.IsRegex && edit.NewText != "" {
+			return "", fmt.Errorf("invalid edit parameters for line %d: cannot provide both IsRegex=true and non-empty NewText", edit.StartLine)
+		}
+		// --- End Parameter Conflict Check ---
+
 		rng, err := getRange(edit.StartLine, edit.EndLine, filePath)
 		if err != nil {
 			return "", fmt.Errorf("invalid position: %v", err)
