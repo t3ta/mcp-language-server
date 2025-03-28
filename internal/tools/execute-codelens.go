@@ -3,8 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
-	"path/filepath" // Added for absolute path conversion
 	"time"
+	"path/filepath" // Added for absolute path conversion
 
 	"github.com/isaacphi/mcp-language-server/internal/lsp"
 	"github.com/isaacphi/mcp-language-server/internal/protocol"

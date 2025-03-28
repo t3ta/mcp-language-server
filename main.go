@@ -53,7 +53,7 @@ type LanguageServerConfig struct {
 
 // Config holds the overall configuration for the mcp-language-server
 type Config struct {
-	WorkspaceDir    string                 `json:"workspaceDir"`
+	WorkspaceDir  string                 `json:"workspaceDir"`
 	LanguageServers []LanguageServerConfig `json:"languageServers"`
 }
 
@@ -125,6 +125,7 @@ func loadConfig(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("config error: workspaceDir '%s' does not exist", config.WorkspaceDir)
 	}
 
+
 	if len(config.LanguageServers) == 0 {
 		log.Printf("Warning: No language servers defined in config file '%s'", configPath)
 		// Return error or allow running without language servers? Allow for now.
@@ -143,7 +144,7 @@ func loadConfig(configPath string) (*Config, error) {
 		if _, err := exec.LookPath(lsConfig.Command); err != nil {
 			// Check if it's an absolute path that exists
 			if !filepath.IsAbs(lsConfig.Command) || os.IsNotExist(err) {
-				return nil, fmt.Errorf("config error: command '%s' for language '%s' not found in PATH or as absolute path: %w", lsConfig.Command, lsConfig.Language, err)
+ 				return nil, fmt.Errorf("config error: command '%s' for language '%s' not found in PATH or as absolute path: %w", lsConfig.Command, lsConfig.Language, err)
 			}
 			// If it's an absolute path that exists, LookPath might fail if it doesn't have execute permissions,
 			// but we might allow it here and let the execution fail later. Or add an explicit check?
@@ -161,9 +162,11 @@ func loadConfig(configPath string) (*Config, error) {
 		}
 	}
 
+
 	log.Printf("Configuration loaded successfully.")
 	return &config, nil
 }
+
 
 func newServer(config *Config) (*server, error) { // Use new Config type
 	ctx, cancel := context.WithCancel(context.Background())
