@@ -38,9 +38,10 @@ type FindReferencesArgs struct {
 	Language        string `json:"language" jsonschema:"required,description=The programming language of the symbol (e.g., 'typescript', 'go')"` // Added language argument
 }
 
+// Integrate notes into the Edits description
 type ApplyTextEditArgs struct {
-	FilePath string                `json:"filePath" jsonschema:"required,description=The path to the file to apply edits to."` // Added description
-	Edits    []internalTools.TextEdit `json:"edits" jsonschema:"required,description=An array of text edit objects defining the changes to apply.",items={
+	FilePath string                `json:"filePath" jsonschema:"required,description=The path to the file to apply edits to."`
+	Edits    []internalTools.TextEdit `json:"edits" jsonschema:"required,description=An array of text edit objects defining the changes to apply. Multiple edits can be provided in this array to be applied atomically in a single operation.\n\n**Warning:** Applying multiple edits sequentially using separate 'apply_text_edit' calls can lead to incorrect results due to shifting line numbers after each edit. **Always provide all desired edits within the 'edits' array in a single call** to ensure atomicity and correct line number referencing based on the original document state.\n\n**Important Notes:**\n*   Multiple edits provided in the 'edits' array are applied atomically as a single operation.\n*   'startLine' and 'endLine' for each edit **must** refer to the line numbers in the *original* document state, before any edits in the current request are applied.\n*   The server handles internal line number adjustments when processing multiple edits.\n*   Edits are typically processed from bottom-to-top internally to manage line shifts correctly.\n*   Providing conflicting parameters (e.g., 'isRegex: true' and a non-empty 'newText') will result in an error.",items={
 		"type": "object",
 		"properties": {
 			"type": {
@@ -83,8 +84,10 @@ type ApplyTextEditArgs struct {
 			}
 		},
 		"required": ["type", "startLine", "endLine"]
-	}` // Use internalTools alias, Inlined TextEdit schema description
+	}`
+	// Removed _editsNotes field
 }
+
 
 type GetDiagnosticsArgs struct {
 	FilePath        string `json:"filePath" jsonschema:"required,description=The path to the file to get diagnostics for"`
@@ -121,9 +124,12 @@ type FindSymbolsArgs struct {
 func (s *server) registerTools() error {
 
 	// Register apply_text_edit tool
+	// Keep the main description concise, details are now in the Edits parameter description
+	applyTextEditDescription := `Apply text edits to a file specified by 'filePath'. The 'edits' array allows providing multiple edit objects to be applied atomically.`
+
 	err := s.mcpServer.RegisterTool(
 		"apply_text_edit",
-		"Apply multiple text edits to a file specified by `filePath`. Each edit in the `edits` array defines the operation (`replace`, `insert`, `delete`), range (`startLine`, `endLine`), and optionally `newText` or regex patterns for advanced replacements.", // Even more detailed description! ✨
+		applyTextEditDescription, // Use the concise description
 		func(args ApplyTextEditArgs) (*mcp_golang.ToolResponse, error) {
 			// Get LSP client based on file extension
 			client, err := s.getClientForFile(args.FilePath)
