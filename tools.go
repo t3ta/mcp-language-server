@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json" // Import encoding/json
 	"fmt"
 	"path/filepath" // For extension checking
 
@@ -99,6 +100,23 @@ type ExecuteCodeLensArgs struct {
 	FilePath string `json:"filePath" jsonschema:"required,description=The path to the file containing the code lens to execute"`
 	Index    int    `json:"index" jsonschema:"required,description=The index of the code lens to execute (from get_codelens output), 1 indexed"`
 }
+
+// Define args struct for rename_symbol tool
+type RenameSymbolArgs struct {
+	FilePath  string `json:"filePath" jsonschema:"required,description=Path to the file containing the symbol."`
+	Line      int    `json:"line" jsonschema:"required,description=0-based line number of the symbol."`
+	Character int    `json:"character" jsonschema:"required,description=0-based character offset of the symbol."`
+	NewName   string `json:"newName" jsonschema:"required,description=The new name for the symbol."`
+}
+
+// Define args struct for find_symbols tool
+type FindSymbolsArgs struct {
+	Query           string `json:"query" jsonschema:"required,description=Search query string."`
+	Scope           string `json:"scope" jsonschema:"required,enum=[\"workspace\", \"document\"],description=Search scope ('workspace' or 'document')."`
+	FilePath        string `json:"filePath,omitempty" jsonschema:"description=Path to the file (required if scope is 'document')."`
+	ShowLineNumbers bool   `json:"showLineNumbers,omitempty" jsonschema:"default=true,description=Include line numbers in the result."`
+}
+
 
 func (s *server) registerTools() error {
 
@@ -236,6 +254,97 @@ func (s *server) registerTools() error {
 	if err != nil {
 		return fmt.Errorf("failed to register tool: %v", err)
 	}
+
+	// Register rename_symbol tool
+	err = s.mcpServer.RegisterTool(
+		"rename_symbol",
+		"Renames a symbol across the workspace using the Language Server Protocol.",
+		func(args RenameSymbolArgs) (*mcp_golang.ToolResponse, error) {
+			// Get LSP client based on file extension
+			client, err := s.getClientForFile(args.FilePath)
+			if err != nil {
+				return nil, err
+			}
+
+			// Instantiate the tool struct (assuming it needs the client)
+			renameTool := internalTools.RenameSymbolTool{Client: client}
+
+			// Corrected: Marshal args to json.RawMessage before passing to Execute
+			argsJSON, err := json.Marshal(args)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal rename args: %v", err)
+			}
+
+
+			// Execute the tool's logic
+			resultJSON, err := renameTool.Execute(s.ctx, argsJSON) // Pass marshaled JSON
+			if err != nil {
+				return nil, fmt.Errorf("failed to execute rename symbol: %v", err)
+			}
+
+			// Corrected: Return result as text (string representation of the JSON)
+			return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(string(resultJSON))), nil
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to register rename_symbol tool: %v", err)
+	}
+
+	// Register find_symbols tool
+	err = s.mcpServer.RegisterTool(
+		"find_symbols",
+		"Finds symbols in the workspace or a specific document using the Language Server Protocol.",
+		func(args FindSymbolsArgs) (*mcp_golang.ToolResponse, error) {
+			var client *lsp.Client
+			var err error
+
+			// Determine client based on scope
+			if args.Scope == "document" {
+				if args.FilePath == "" {
+					return nil, fmt.Errorf("filePath is required for document scope search")
+				}
+				client, err = s.getClientForFile(args.FilePath)
+				if err != nil {
+					return nil, err
+				}
+			} else if args.Scope == "workspace" {
+				// For workspace scope, we might need a default client or iterate through all?
+				// Let's assume a primary client exists or pick the first one for now.
+				// This logic might need refinement based on how workspace symbols should work across languages.
+				if len(s.lspClients) == 0 {
+					return nil, fmt.Errorf("no LSP clients available for workspace symbol search")
+				}
+				for _, c := range s.lspClients { // Just pick the first one
+					client = c
+					break
+				}
+			} else {
+				return nil, fmt.Errorf("invalid scope: %s. Must be 'workspace' or 'document'", args.Scope)
+			}
+
+			// Instantiate the tool struct
+			findTool := internalTools.FindSymbolsTool{Client: client}
+
+			// Marshal args to json.RawMessage
+			argsJSON, err := json.Marshal(args)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal find_symbols args: %v", err)
+			}
+
+			// Execute the tool's logic
+			resultJSON, err := findTool.Execute(s.ctx, argsJSON)
+			if err != nil {
+				return nil, fmt.Errorf("failed to execute find symbols: %v", err)
+			}
+
+			// Return result as text (string representation of the JSON containing the list)
+			return mcp_golang.NewToolResponse(mcp_golang.NewTextContent(string(resultJSON))), nil
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to register find_symbols tool: %v", err)
+	}
+
 
 	return nil
 }
